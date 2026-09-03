@@ -14,21 +14,42 @@ import androidx.compose.ui.unit.dp
 
 data class Mechanic(
     val name: String,
-    val garage: String,
     val rating: String,
     val distance: String,
-    val address: String,
+    val location: String,
     val services: String,
+    val status: String,
     val hours: String,
     val phone: String
 )
 
+val mechanics = listOf(
+    Mechanic(
+        "Sharma Auto Garage", "4.7", "1.2 km",
+        "Bhopal", "Oil Change, Brake Repair, Engine Service",
+        "Open", "9:00 AM - 8:00 PM", "9876543210"
+    ),
+    Mechanic(
+        "City Car Care", "4.5", "2.5 km",
+        "Bhopal", "Car Wash, Battery, AC Repair",
+        "Open", "10:00 AM - 7:00 PM", "9876501234"
+    ),
+    Mechanic(
+        "Quick Fix Motors", "4.3", "3.1 km",
+        "Bhopal", "Tyre Repair, Engine Service",
+        "Closed", "9:00 AM - 6:00 PM", "9876512345"
+    )
+)
+
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
-            MechanicApp()
+            MaterialTheme {
+                MechanicApp()
+            }
         }
     }
 }
@@ -36,60 +57,65 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MechanicApp() {
 
-    var selectedMechanic by remember { mutableStateOf<Mechanic?>(null) }
-    var showForm by remember { mutableStateOf(false) }
+    var selectedMechanic by remember {
+        mutableStateOf<Mechanic?>(null)
+    }
 
-    val mechanics = listOf(
-        Mechanic(
-            "Raj Kumar",
-            "Raj Auto Garage",
-            "4.8",
-            "1.2 km",
-            "MP Nagar, Bhopal",
-            "Oil Change, Brake Repair, Engine Service",
-            "9 AM - 8 PM",
-            "9876543210"
-        ),
-        Mechanic(
-            "Amit Sharma",
-            "Amit Car Care",
-            "4.6",
-            "2.5 km",
-            "Kolar Road, Bhopal",
-            "Car Service, Battery, Tyre Repair",
-            "8 AM - 9 PM",
-            "9876501234"
-        )
-    )
+    var showRequestForm by remember {
+        mutableStateOf(false)
+    }
 
-    if (showForm && selectedMechanic != null) {
-        RequestServiceScreen(
-            mechanic = selectedMechanic!!,
-            onBack = { showForm = false }
-        )
-    } else if (selectedMechanic != null) {
-        MechanicDetailsScreen(
-            mechanic = selectedMechanic!!,
-            onBack = { selectedMechanic = null },
-            onRequest = { showForm = true }
-        )
-    } else {
-        HomeScreen(
-            mechanics = mechanics,
-            onMechanicClick = { selectedMechanic = it }
-        )
+    var submitted by remember {
+        mutableStateOf(false)
+    }
+
+    when {
+        submitted -> {
+            ConfirmationScreen {
+                submitted = false
+                selectedMechanic = null
+            }
+        }
+
+        showRequestForm && selectedMechanic != null -> {
+            RequestServiceScreen(
+                mechanic = selectedMechanic!!,
+                onSubmit = {
+                    submitted = true
+                    showRequestForm = false
+                }
+            )
+        }
+
+        selectedMechanic != null -> {
+            MechanicDetailsScreen(
+                mechanic = selectedMechanic!!,
+                onBack = {
+                    selectedMechanic = null
+                },
+                onRequest = {
+                    showRequestForm = true
+                }
+            )
+        }
+
+        else -> {
+            HomeScreen(
+                onMechanicClick = {
+                    selectedMechanic = it
+                }
+            )
+        }
     }
 }
 
 @Composable
-fun HomeScreen(
-    mechanics: List<Mechanic>,
-    onMechanicClick: (Mechanic) -> Unit
-) {
+fun HomeScreen(onMechanicClick: (Mechanic) -> Unit) {
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(20.dp)
+            .padding(16.dp)
     ) {
 
         Text(
@@ -97,14 +123,14 @@ fun HomeScreen(
             style = MaterialTheme.typography.headlineMedium
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Nearby Mechanics",
-            style = MaterialTheme.typography.titleLarge
+            text = "Find a mechanic near you",
+            style = MaterialTheme.typography.bodyLarge
         )
 
-        Spacer(modifier = Modifier.height(15.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         LazyColumn {
             items(mechanics) { mechanic ->
@@ -117,26 +143,24 @@ fun HomeScreen(
                             onMechanicClick(mechanic)
                         }
                 ) {
+
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
 
                         Text(
                             mechanic.name,
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleLarge
                         )
 
-                        Text("Garage: ${mechanic.garage}")
-                        Text("⭐ Rating: ${mechanic.rating}")
-                        Text("📍 Distance: ${mechanic.distance}")
-                        Text("Services: ${mechanic.services}")
-                        Text("Open: ${mechanic.hours}")
+                        Text("⭐ ${mechanic.rating}")
+                        Text("📍 ${mechanic.location}")
+                        Text("📏 ${mechanic.distance}")
+                        Text("🔧 ${mechanic.services}")
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        Text(
-                            "Tap to view details →"
-                        )
+                        Text("Status: ${mechanic.status}")
                     }
                 }
             }
@@ -150,33 +174,33 @@ fun MechanicDetailsScreen(
     onBack: () -> Unit,
     onRequest: () -> Unit
 ) {
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(20.dp)
+            .padding(16.dp)
     ) {
 
-        Button(onClick = onBack) {
-            Text("← Back")
-        }
+        Text(
+            text = "Mechanic Details",
+            style = MaterialTheme.typography.headlineMedium
+        )
 
-        Spacer(modifier = Modifier.height(15.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-            mechanic.garage,
+            mechanic.name,
             style = MaterialTheme.typography.headlineSmall
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Text("Mechanic: ${mechanic.name}")
         Text("⭐ Rating: ${mechanic.rating}")
-        Text("📍 Address: ${mechanic.address}")
-        Text("🛠️ Services: ${mechanic.services}")
-        Text("🕒 Working Hours: ${mechanic.hours}")
+        Text("📍 Address: ${mechanic.location}")
+        Text("🔧 Services: ${mechanic.services}")
+        Text("🕐 Working Hours: ${mechanic.hours}")
         Text("📞 Phone: ${mechanic.phone}")
+        Text("Status: ${mechanic.status}")
 
-        Spacer(modifier = Modifier.height(25.dp))
+        Spacer(modifier = Modifier.height(30.dp))
 
         Button(
             onClick = onRequest,
@@ -184,49 +208,55 @@ fun MechanicDetailsScreen(
         ) {
             Text("Request Service")
         }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Back")
+        }
     }
 }
 
 @Composable
 fun RequestServiceScreen(
     mechanic: Mechanic,
-    onBack: () -> Unit
+    onSubmit: () -> Unit
 ) {
 
-    var customerName by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
-    var vehicleNumber by remember { mutableStateOf("") }
+    var vehicle by remember { mutableStateOf("") }
     var service by remember { mutableStateOf("") }
     var problem by remember { mutableStateOf("") }
-    var submitted by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(20.dp)
+            .padding(16.dp)
     ) {
-
-        Button(onClick = onBack) {
-            Text("← Back")
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
 
         Text(
             "Request Service",
-            style = MaterialTheme.typography.headlineSmall
+            style = MaterialTheme.typography.headlineMedium
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text("Mechanic: ${mechanic.name}")
 
-        Spacer(modifier = Modifier.height(15.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
-            value = customerName,
-            onValueChange = { customerName = it },
+            value = name,
+            onValueChange = { name = it },
             label = { Text("Customer Name") },
             modifier = Modifier.fillMaxWidth()
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = phone,
@@ -235,47 +265,73 @@ fun RequestServiceScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+
         OutlinedTextField(
-            value = vehicleNumber,
-            onValueChange = { vehicleNumber = it },
+            value = vehicle,
+            onValueChange = { vehicle = it },
             label = { Text("Vehicle Number") },
             modifier = Modifier.fillMaxWidth()
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+
         OutlinedTextField(
             value = service,
             onValueChange = { service = it },
-            label = { Text("Service Required") },
+            label = { Text("Select Service") },
             modifier = Modifier.fillMaxWidth()
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = problem,
             onValueChange = { problem = it },
             label = { Text("Problem Description") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
         )
 
-        Spacer(modifier = Modifier.height(15.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = { submitted = true },
+            onClick = onSubmit,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Confirm Request")
+            Text("Submit Request")
         }
+    }
+}
 
-        if (submitted) {
+@Composable
+fun ConfirmationScreen(onDone: () -> Unit) {
 
-            Spacer(modifier = Modifier.height(15.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
 
-            Text(
-                "✅ Service Request Confirmed!",
-                style = MaterialTheme.typography.titleMedium
-            )
+        Text(
+            "Request Confirmed! ✅",
+            style = MaterialTheme.typography.headlineMedium
+        )
 
-            Text("Mechanic: ${mechanic.name}")
-            Text("Vehicle: $vehicleNumber")
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            "Your vehicle service request has been submitted successfully."
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = onDone,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Back to Home")
         }
     }
 }
