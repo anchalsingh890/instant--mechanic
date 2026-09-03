@@ -3,7 +3,6 @@ package com.example.instantmechanic
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +10,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.json.JSONArray
 
 data class Mechanic(
     val name: String,
@@ -19,33 +21,40 @@ data class Mechanic(
     val location: String,
     val services: String,
     val status: String,
+    val address: String,
     val hours: String,
     val phone: String
 )
 
-val mechanics = listOf(
-    Mechanic(
-        "Sharma Auto Garage", "4.7", "1.2 km",
-        "Bhopal", "Oil Change, Brake Repair, Engine Service",
-        "Open", "9:00 AM - 8:00 PM", "9876543210"
-    ),
-    Mechanic(
-        "City Car Care", "4.5", "2.5 km",
-        "Bhopal", "Car Wash, Battery, AC Repair",
-        "Open", "10:00 AM - 7:00 PM", "9876501234"
-    ),
-    Mechanic(
-        "Quick Fix Motors", "4.3", "3.1 km",
-        "Bhopal", "Tyre Repair, Engine Service",
-        "Closed", "9:00 AM - 6:00 PM", "9876512345"
-    )
-)
+val mechanicJson = """
+[
+ {"name":"Sharma Auto Garage","rating":"4.5","distance":"2.1 km","location":"Bhopal","services":"Oil Change, Brake Repair","status":"Open","address":"MP Nagar, Bhopal","hours":"9 AM - 8 PM","phone":"9876543210"},
+ {"name":"City Car Care","rating":"4.3","distance":"3.5 km","location":"Bhopal","services":"Car Service, Battery","status":"Open","address":"Arera Colony, Bhopal","hours":"8 AM - 7 PM","phone":"9876543211"},
+ {"name":"Quick Fix Motors","rating":"4.7","distance":"4.2 km","location":"Bhopal","services":"Engine Repair, Tyre Service","status":"Closed","address":"Kolar Road, Bhopal","hours":"10 AM - 6 PM","phone":"9876543212"}
+]
+"""
+
+fun loadMechanics(): List<Mechanic> {
+    val array = JSONArray(mechanicJson)
+    return List(array.length()) { i ->
+        val o = array.getJSONObject(i)
+        Mechanic(
+            o.getString("name"),
+            o.getString("rating"),
+            o.getString("distance"),
+            o.getString("location"),
+            o.getString("services"),
+            o.getString("status"),
+            o.getString("address"),
+            o.getString("hours"),
+            o.getString("phone")
+        )
+    }
+}
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {
             MaterialTheme {
                 MechanicApp()
@@ -56,110 +65,77 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MechanicApp() {
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var mechanics by remember { mutableStateOf<List<Mechanic>>(emptyList()) }
+    var selected by remember { mutableStateOf<Mechanic?>(null) }
+    var screen by remember { mutableStateOf("home") }
 
-    var selectedMechanic by remember {
-        mutableStateOf<Mechanic?>(null)
-    }
-
-    var showRequestForm by remember {
-        mutableStateOf(false)
-    }
-
-    var submitted by remember {
-        mutableStateOf(false)
+    LaunchedEffect(Unit) {
+        try {
+            delay(800)
+            mechanics = loadMechanics()
+            loading = false
+        } catch (e: Exception) {
+            error = "Unable to load mechanic data"
+            loading = false
+        }
     }
 
     when {
-        submitted -> {
-            ConfirmationScreen {
-                submitted = false
-                selectedMechanic = null
+        loading -> Box(Modifier.fillMaxSize().padding(24.dp)) {
+            CircularProgressIndicator()
+            Text("Loading mechanics...", modifier = Modifier.padding(top = 60.dp))
+        }
+
+        error != null -> Column(Modifier.padding(24.dp)) {
+            Text("Error: $error")
+            Button(onClick = {
+                error = null
+                loading = true
+            }) {
+                Text("Retry")
             }
         }
 
-        showRequestForm && selectedMechanic != null -> {
-            RequestServiceScreen(
-                mechanic = selectedMechanic!!,
-                onSubmit = {
-                    submitted = true
-                    showRequestForm = false
-                }
-            )
+        screen == "home" -> HomeScreen(mechanics) {
+            selected = it
+            screen = "details"
         }
 
-        selectedMechanic != null -> {
-            MechanicDetailsScreen(
-                mechanic = selectedMechanic!!,
-                onBack = {
-                    selectedMechanic = null
-                },
-                onRequest = {
-                    showRequestForm = true
-                }
-            )
-        }
+        screen == "details" && selected != null ->
+            DetailsScreen(selected!!) { screen = "request" }
 
-        else -> {
-            HomeScreen(
-                onMechanicClick = {
-                    selectedMechanic = it
-                }
-            )
-        }
+        screen == "request" && selected != null ->
+            RequestScreen(selected!!) { screen = "confirmation" }
+
+        screen == "confirmation" ->
+            ConfirmationScreen { screen = "home" }
     }
 }
 
 @Composable
-fun HomeScreen(onMechanicClick: (Mechanic) -> Unit) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-
-        Text(
-            text = "Instant Mechanic",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Find a mechanic near you",
-            style = MaterialTheme.typography.bodyLarge
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
+fun HomeScreen(
+    mechanics: List<Mechanic>,
+    onClick: (Mechanic) -> Unit
+) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Instant Mechanic", style = MaterialTheme.typography.headlineMedium)
+        Text("Find a mechanic near you", modifier = Modifier.padding(vertical = 12.dp))
 
         LazyColumn {
             items(mechanics) { mechanic ->
-
                 Card(
+                    onClick = { onClick(mechanic) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .clickable {
-                            onMechanicClick(mechanic)
-                        }
+                        .padding(vertical = 6.dp)
                 ) {
-
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-
-                        Text(
-                            mechanic.name,
-                            style = MaterialTheme.typography.titleLarge
-                        )
-
-                        Text("⭐ ${mechanic.rating}")
+                    Column(Modifier.padding(16.dp)) {
+                        Text(mechanic.name, style = MaterialTheme.typography.titleLarge)
+                        Text("⭐ ${mechanic.rating}   •   ${mechanic.distance}")
                         Text("📍 ${mechanic.location}")
-                        Text("📏 ${mechanic.distance}")
-                        Text("🔧 ${mechanic.services}")
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
+                        Text("Services: ${mechanic.services}")
                         Text("Status: ${mechanic.status}")
                     }
                 }
@@ -169,63 +145,29 @@ fun HomeScreen(onMechanicClick: (Mechanic) -> Unit) {
 }
 
 @Composable
-fun MechanicDetailsScreen(
-    mechanic: Mechanic,
-    onBack: () -> Unit,
-    onRequest: () -> Unit
-) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-
-        Text(
-            text = "Mechanic Details",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            mechanic.name,
-            style = MaterialTheme.typography.headlineSmall
-        )
-
+fun DetailsScreen(mechanic: Mechanic, onRequest: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(20.dp)) {
+        Text(mechanic.name, style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(12.dp))
         Text("⭐ Rating: ${mechanic.rating}")
-        Text("📍 Address: ${mechanic.location}")
+        Text("📍 Address: ${mechanic.address}")
         Text("🔧 Services: ${mechanic.services}")
-        Text("🕐 Working Hours: ${mechanic.hours}")
+        Text("🕒 Working Hours: ${mechanic.hours}")
         Text("📞 Phone: ${mechanic.phone}")
-        Text("Status: ${mechanic.status}")
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(Modifier.height(20.dp))
 
-        Button(
-            onClick = onRequest,
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Button(onClick = onRequest) {
             Text("Request Service")
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedButton(
-            onClick = onBack,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Back")
         }
     }
 }
 
 @Composable
-fun RequestServiceScreen(
+fun RequestScreen(
     mechanic: Mechanic,
     onSubmit: () -> Unit
 ) {
-
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var vehicle by remember { mutableStateOf("") }
@@ -233,72 +175,23 @@ fun RequestServiceScreen(
     var problem by remember { mutableStateOf("") }
 
     Column(
-        modifier = Modifier
+        Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(20.dp)
     ) {
+        Text("Request Service", style = MaterialTheme.typography.headlineSmall)
 
-        Text(
-            "Request Service",
-            style = MaterialTheme.typography.headlineMedium
-        )
+        OutlinedTextField(name, { name = it }, label = { Text("Customer Name") })
+        OutlinedTextField(phone, { phone = it }, label = { Text("Phone Number") })
+        OutlinedTextField(vehicle, { vehicle = it }, label = { Text("Vehicle Number") })
+        OutlinedTextField(service, { service = it }, label = { Text("Select Service") })
+        OutlinedTextField(problem, { problem = it }, label = { Text("Problem Description") })
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("Mechanic: ${mechanic.name}")
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Customer Name") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = phone,
-            onValueChange = { phone = it },
-            label = { Text("Phone Number") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = vehicle,
-            onValueChange = { vehicle = it },
-            label = { Text("Vehicle Number") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = service,
-            onValueChange = { service = it },
-            label = { Text("Select Service") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = problem,
-            onValueChange = { problem = it },
-            label = { Text("Problem Description") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
         Button(
             onClick = onSubmit,
-            modifier = Modifier.fillMaxWidth()
+            enabled = name.isNotBlank() && phone.isNotBlank()
         ) {
             Text("Submit Request")
         }
@@ -306,31 +199,17 @@ fun RequestServiceScreen(
 }
 
 @Composable
-fun ConfirmationScreen(onDone: () -> Unit) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-    ) {
+fun ConfirmationScreen(onHome: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(24.dp)) {
+        Text("✅ Service Request Submitted!",
+            style = MaterialTheme.typography.headlineSmall)
 
         Text(
-            "Request Confirmed! ✅",
-            style = MaterialTheme.typography.headlineMedium
+            "Your service request has been received successfully.",
+            modifier = Modifier.padding(vertical = 16.dp)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            "Your vehicle service request has been submitted successfully."
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = onDone,
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Button(onClick = onHome) {
             Text("Back to Home")
         }
     }
